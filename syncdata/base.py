@@ -204,6 +204,7 @@ class BaseLoader(object):
 class BaseModelHandler(object):
     strict_mode = True
     actions_queue = ['prepare', 'validate', 'generate',]
+    save_unchanged_objects = False
     loggers = None
 
     def __init__(self, **kwargs):
@@ -477,7 +478,8 @@ class BaseModelHandler(object):
         if form.is_valid():
             data = dict(self.prepare_cleaned_data(form, item),
                         pk=form.instance.pk or item.get('pk', None))
-            elem = {'valid': True, 'cleaned': data,}
+            elem = {'valid': True, 'cleaned': data,
+                    'changed': form.has_changed(),}
         else:
             elem = {'valid': False, 'errors': dict(form.errors),}
 
@@ -589,6 +591,15 @@ class BaseModelHandler(object):
 
         return object
 
+    def require_to_save_object(self, deserialized, serialized):
+        """
+        Method tells is there requirement to save current object or not.
+        By default unchanged objects does not saving, because there is no need
+        to do it. To force update unchanged objects anyway, set
+        save_unchanged_objects property to True or just extend this method.
+        """
+        return serialized['source']['changed'] or self.save_unchanged_objects
+
     def action_generate(self, data):
         """
         Метод обработчик действия generate.
@@ -604,16 +615,21 @@ class BaseModelHandler(object):
         в иерархии коллекций.
         """
         serialized = self.get_serialized_data(data)
-        prepared = self.prepare_serialized_data(serialized) # lazy
-        deserialized = Deserializer(prepared) # lazy
+        prepared = self.prepare_serialized_data(serialized)  # lazy
+        deserialized = Deserializer(prepared)  # lazy
 
         self.log("\ngenerate                 %s "
                  % str(len(serialized)).ljust(5))
-        for dobj, sobj in izip(deserialized, serialized): # lazy
-            obj = self.get_deserialized_object(dobj, sobj)
-            obj = self.save_deserialized_object(obj, dobj, sobj)
-            sobj['source']['pk'] = obj.pk
-            self.log('+' if getattr(obj, '__is_new__', False) else '.')
+        for dobj, sobj in izip(deserialized, serialized):  # lazy
+            if not self.require_to_save_object(dobj, sobj):
+                sobj['source']['pk'] = dobj.object.pk
+                char = '-'
+            else:
+                obj = self.get_deserialized_object(dobj, sobj)
+                obj = self.save_deserialized_object(obj, dobj, sobj)
+                sobj['source']['pk'] = obj.pk
+                char = '+' if getattr(obj, '__is_new__', False) else '.'
+            self.log(char)
 
         # clear query log
         db.reset_queries()
@@ -830,11 +846,13 @@ class BaseImporter(object):
                  u'\n- message       %s'
                  u'\n- datetime      %s'
                  u'\n- class         %s'
+                 u'\n- datadir       %s'
                  u'\n- options       %s'
                  u'\n- struct\n  %s'
                  % ('-'*79, '-'*31, '-'*31, '-'*79,
                     clsname, options.get('message', u'—'),
                     timezone.localtime(timezone.now()), self.__class__,
+                    settings.DATA_DIR,
                     json.dumps(options, indent=2, ensure_ascii=False),
                     '\n  '.join(self.visualize_struct(lqueue,
                                                       hqueue).splitlines()),))
