@@ -203,6 +203,7 @@ class BaseLoader(object):
 # --------------
 class BaseModelHandler(object):
     strict_mode = True
+    strict_mode_synchronize = False
     actions_queue = ['prepare', 'validate', 'generate',]
     save_unchanged_objects = False
     loggers = None
@@ -729,9 +730,12 @@ class BaseImporter(object):
 
         return queue
 
-    def get_synchronized_value(self, rfield, elem, message):
+    def get_synchronized_value(self, rfield, elem, hashed_value,
+                               strict_mode, message):
         if not elem or not elem.get('pk', None):
-            raise ValueError(message)
+            if strict_mode:
+                raise ValueError(message)
+            return hashed_value
 
         return (getattr(rfield.model.objects.get(pk=elem['pk']), rfield.name)
                 if rfield and not rfield.primary_key else elem['pk'])
@@ -757,6 +761,7 @@ class BaseImporter(object):
         """
 
         collection = data[handler.get_key()]
+        strict_mode = handler.strict_mode_synchronize
 
         hrel = [i.get('hash_related').items()
                 for i in collection if i.has_key('hash_related')]
@@ -789,17 +794,20 @@ class BaseImporter(object):
                     for key, val in enumerate(value):
                         if isinstance(val, dict) and '__hash__' in val:
                             value[key] = self.get_synchronized_value(
-                                rfield, rvalue.get(val['__hash__'], None), msg)
+                                rfield, rvalue.get(val['__hash__'], None),
+                                val, strict_mode, msg)
 
                 elif isinstance(field.remote_field, models.ManyToOneRel):
                     rfield = field.remote_field.get_related_field()
                     if isinstance(value, dict) and '__hash__' in value:
                         item['fields'][fname] = self.get_synchronized_value(
-                            rfield, rvalue.get(value['__hash__'], None), msg)
+                            rfield, rvalue.get(value['__hash__'], None),
+                            value, strict_mode, msg)
 
                 elif isinstance(value, dict) and '__hash__' in value:
-                        item['fields'][fname] = self.get_synchronized_value(
-                            None, rvalue.get(value['__hash__'], None), msg)
+                    item['fields'][fname] = self.get_synchronized_value(
+                        None, rvalue.get(value['__hash__'], None),
+                        value, strict_mode, msg)
             self.log('.')
 
     def pre_run(self, lqueue=None, hqueue=None, data=None, files=None):
