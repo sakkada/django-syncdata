@@ -206,6 +206,7 @@ class BaseModelHandler(object):
     strict_mode_synchronize = False
     actions_queue = ['prepare', 'validate', 'generate',]
     save_unchanged_objects = False
+    update_objects_only = False
     loggers = None
 
     def __init__(self, **kwargs):
@@ -469,14 +470,18 @@ class BaseModelHandler(object):
         data = copy.deepcopy(item['fields'])
         data, files = self.prepare_uncleaned_data(data, item)
 
-        instance = self.get_instance_from_data(item)
-        kwargs = {'item': item, 'data': data,
-                  'files': files, 'instance': instance,}
+        instance, form = self.get_instance_from_data(item), None
+        if instance or not self.update_objects_only:
+            kwargs = {'item': item, 'data': data,
+                      'files': files, 'instance': instance,}
+            form = self.get_form_class(**kwargs)
+            form = self.get_form_instance(form, **kwargs)
 
-        form = self.get_form_class(**kwargs)
-        form = self.get_form_instance(form, **kwargs)
-
-        if form.is_valid():
+        if form is None:
+            elem = ('ModelHandler declared as update_objects_only,'
+                    ' but object does not exists.')
+            elem = {'valid': False, 'errors': {'__all__': elem,},}
+        elif form.is_valid():
             data = dict(self.prepare_cleaned_data(form, item),
                         pk=form.instance.pk or item.get('pk', None))
             elem = {'valid': True, 'cleaned': data,
