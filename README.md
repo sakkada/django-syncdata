@@ -62,8 +62,8 @@ Run data synchronization process:
 
     python manage.py syncdata -i importername -p "main.generate=True main.download=True"
 
-And go to the Admin page `http://127.0.0.1:8000/admin/main/syncdatalog/` to
-watch results of import process.
+And go to the Admin page `http://127.0.0.1:8000/admin/main/syncdatalogentry/`
+to watch results of import process.
 
 ----
 Source code at [bitbucket.org][bitbucket] and [github.com][github].

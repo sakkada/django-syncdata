@@ -438,11 +438,8 @@ comments.
 }.
 ------
 
-
 After all ModelHandlers will be processed, all logger will be called with
 post run method, file locker will be realeazed and process will be finished.
-
-
 
 -------------------------------------------------------------------------------
 
@@ -451,31 +448,33 @@ Usage example:
 
 Define database log entry model in main/models.py:
 
-    from syncdata.models import BaseSyncDataLog
+    from syncdata.models import BaseSyncDataLogEntry
 
 
-    class SyncDataLog(BaseSyncDataLog):
+    class SyncDataLogEntry(BaseSyncDataLogEntry):
         pass
-
 
 Define admin for log entries in main/admin.py:
 
-    from syncdata.admin import SyncDataLogAdmin
+    from syncdata.admin import SyncDataLogEntryAdmin
     from main import models
 
-    admin.site.register(models.SyncDataLog, SyncDataLogAdmin)
-
+    admin.site.register(models.SyncDataLogEntry, SyncDataLogEntryAdmin)
 
 Define Importer in main/sync.py and after register it in setting.py:
 
     # Syncdata
     SYNCDATA_DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, 'syncdata'))
     SYNCDATA_IMPORTERS = {
-        'xmlsource': 'main.sync.ProjectXMLImporter',
+        'importername': 'main.sync.ProjectXMLImporter',
     }
 
+After just run:
 
-After just run and watch result in console or admin.
+    python manage.py syncdata -i importername -p "main.generate=True main.download=True"
+
+And go to the Admin page `http://127.0.0.1:8000/admin/main/syncdatalogentry/`
+to watch results of import process.
 """
 
 VERSION = (0, 1, 1)
