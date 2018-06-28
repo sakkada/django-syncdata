@@ -477,6 +477,6 @@ And go to the Admin page `http://127.0.0.1:8000/admin/main/syncdatalogentry/`
 to watch results of import process.
 """
 
-VERSION = (0, 1, 1)
+VERSION = (1, 11, 0)
 
 default_app_config = 'syncdata.config.SyncDataConfig'

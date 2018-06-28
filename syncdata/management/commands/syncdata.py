@@ -8,6 +8,7 @@ from django.utils import translation, module_loading
 from django.conf import settings
 
 from ...utils import params_parser
+from ... import settings as syncdata_settings
 
 
 class Command(BaseCommand):
@@ -39,8 +40,9 @@ class Command(BaseCommand):
             return
 
         # get data from arguments
-        IMPORTERS = getattr(settings, 'SYNCDATA_IMPORTERS', {})
+        IMPORTERS = syncdata_settings.IMPORTERS
         importers = options['importer'].split()
+        statuses = {}
         params = options['params'] and params_parser(options['params'])
         params.update(message=u'SyncData Importer run from shell (syncdata)')
 
@@ -53,7 +55,11 @@ class Command(BaseCommand):
                                  ' pass...' % iname)
                 continue
 
-            importer = Importer()
-            importer.run(**params)
+            statuses[iname] = Importer().run(**params)
 
         sys.stdout.write('\n')
+
+        if any(statuses.values()):
+            sys.stdout.write('\nOne of requested importers finished'
+                             ' with non zero status: (%s).' % statuses)
+            exit([i for i in statuses.values() if i][0])

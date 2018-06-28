@@ -18,11 +18,13 @@ class SyncDataLogEntryForm(forms.ModelForm):
 # Admin models
 # ------------
 class SyncDataLogEntryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'id', 'status', 'date_launch', 'date_finish',)
+    list_display = (
+        'name', 'id', 'status', 'finished', 'date_launch', 'date_finish',
+    )
     list_filter = ('status',)
     form = SyncDataLogEntryForm
     fields = (
-        ('name', 'status',),
+        ('name', 'status', 'finished',),
         'text',
         ('date_launch', 'date_finish',),
     )

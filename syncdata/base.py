@@ -152,8 +152,11 @@ class BaseLogger(object):
     def finallog(self, name=None, status=True):
         pass
 
+    def firstlog(self, name=None, options=True):
+        pass
 
-class BaseModelLogger(object):
+
+class BaseModelLogger(BaseLogger):
     model = None
     def __init__(self):
         self.object = self.model()
@@ -161,9 +164,17 @@ class BaseModelLogger(object):
     def log(self, value):
         self.object.log(value)
 
+    def firstlog(self, name=None, options=True):
+        # todo: model should be saved while processing regardless transaction
+        self.object.name = name or u'SyncData'
+        self.object.date_launch = timezone.now()
+        self.object.save()
+
     def finallog(self, name=None, status=True):
         self.object.name = name or u'SyncData'
         self.object.status = not bool(status)
+        self.object.finished = True
+        self.object.date_finish = timezone.now()
         self.object.save()
 
 
@@ -679,9 +690,13 @@ class BaseImporter(object):
         for i in self.loggers:
             i.log(value)
 
+    def firstlog(self, name=None, options=True):
+        for i in self.loggers:
+            i.firstlog(name=name, options=options)
+
     def finallog(self, name=None, status=True):
         for i in self.loggers:
-            i.finallog(name, status)
+            i.finallog(name=name, status=status)
 
     def download_media(self, urls):
         def reporter(blocknr, blocksize, size):
@@ -867,8 +882,9 @@ class BaseImporter(object):
                     timezone.localtime(timezone.now()), self.__class__,
                     settings.DATA_DIR,
                     json.dumps(options, indent=2, ensure_ascii=False),
-                    '\n  '.join(self.visualize_struct(lqueue,
-                                                      hqueue).splitlines()),))
+                    '\n  '.join(self.visualize_struct(
+                        lqueue, hqueue).splitlines()),))
+        self.firstlog(name=clsname, options=options)
 
         try:
             locker = self.lockname or '%s.lock' % clsname.lower()
