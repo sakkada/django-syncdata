@@ -30,18 +30,19 @@ class Command(BaseCommand):
         elif ttyenc and ttyenc not in ('none', 'preferred'):
             sys.stdout = codecs.getwriter(ttyenc)(sys.stdout)
 
-
         sys.stdout.write('\nDROPDATA\n--------\n')
         sys.stdout.write('\nModels to be deleted:\n%s\n' % ('-'*20,))
 
-        models = apps.get_models()
+        models = [model for model in apps.get_models()
+                  if not model._meta.app_label in ('gis',)]
         app = None
         for m in models:
             if not app == m._meta.app_label:
                 app and sys.stdout.write('\n')
                 app = m._meta.app_label
             label = '    %s.%s' % (m._meta.app_label, m.__name__,)
-            label = '%s%s' % (label, str(m.objects.all().count()).rjust(79-len(label), '.'))
+            label = '%s%s' % (
+                label, str(m.objects.all().count()).rjust(79-len(label), '.'),)
             sys.stdout.write('\n%s' % label)
 
         sys.stdout.write('\n')

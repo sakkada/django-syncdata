@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
+import io
 import os
 import re
 import sys
 import time
-import urllib2
+import queue
 import threading
 import traceback
-from Queue import Queue
-from StringIO import StringIO
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from xml.etree import cElementTree
 
@@ -27,15 +27,16 @@ def params_parser(params):
                         if x in ('None', 'False', 'True') or x.isdigit() else
                         x)
     params = (re.findall(PARAM_REGEX, params)
-              if isinstance(params, basestring) else [])
+              if isinstance(params, str) else [])
     params = [(str(i[0]), i[2] or varval(i[3])) for i in params]
     return dict(params)
+
 
 def exception_to_text(e, limit=None):
     if isinstance(getattr(e, '_exception_lines', None), (list, tuple)):
         return e._exception_lines
 
-    sfile = StringIO()
+    sfile = io.StringIO()
     etype, value, tb = sys.exc_info()
 
     sfile.write('\nStack logging (traceback.print_stack):')
@@ -101,7 +102,7 @@ class FileLock(object):
 # Loaders helpers
 # ---------------
 def xml_to_dict(value):
-    t = (value if not isinstance(value, basestring)
+    t = (value if not isinstance(value, str)
          else cElementTree.XML(value))
     d = {t.tag: {} if t.attrib else None}
 
@@ -109,12 +110,12 @@ def xml_to_dict(value):
     if children:
         dd = defaultdict(list)
         for dc in map(xml_to_dict, children):
-            for k, v in dc.iteritems():
+            for k, v in dc.items():
                 dd[k].append(v)
-        d = {t.tag: {k:v[0] if len(v) == 1 else v for k, v in dd.iteritems()}}
+        d = {t.tag: {k:v[0] if len(v) == 1 else v for k, v in dd.items()}}
 
     if t.attrib:
-        d[t.tag].update(('@' + k, v) for k, v in t.attrib.iteritems())
+        d[t.tag].update(('@' + k, v) for k, v in t.attrib.items())
 
     if t.text:
         text = t.text.strip()
@@ -154,7 +155,7 @@ class URLLoader(object):
             if not os.path.exists(os.path.dirname(self.destination)):
                 os.makedirs(os.path.dirname(self.destination))
 
-            file = urllib2.urlopen(self.url, timeout=self.timeout)
+            file = urllib.request.urlopen(self.url, timeout=self.timeout)
             data = file.read()
             file.close()
 
@@ -163,7 +164,7 @@ class URLLoader(object):
 
             self.success = True
 
-        except urllib2.HTTPError as e:
+        except urllib.error.HTTPError as e:
             # stop if not (short) time related errors
             if e.code in (403, 404, 405,):
                 self.tried = self.tries
@@ -220,7 +221,7 @@ class ThreadedDownloader(object):
     ]               # list of url tuples ('source url', 'destination path',)
     threads = 4     # simultanious threads count
     tries = 5       # count of tries before failure
-    timeout = 60*5  # urllib2.urlopen timeout in seconds
+    timeout = 60*5  # urllib.request.urlopen timeout in seconds
 
     downloader = ThreadedDownloader(urls, threads, tries, timeout)
 
@@ -244,7 +245,7 @@ class ThreadedDownloader(object):
 
     def __init__(self, urls=None, threads=5, tries=10, timeout=10,
                  loggers=None):
-        self.queue = Queue(0)  # infinite sized queue
+        self.queue = queue.Queue(0)  # infinite sized queue
         self.report = {'success': [], 'failure': [],}
         self.threads = threads
         self.pool = []

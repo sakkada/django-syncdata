@@ -1,4 +1,3 @@
-# -- coding: utf-8 --
 """
 Общее описание процесса синхронизации.
 
@@ -125,7 +124,8 @@ import urllib
 import json
 import traceback
 
-from itertools import izip
+from functools import reduce
+
 from django import forms
 from django import db
 from django.db import models
@@ -166,12 +166,12 @@ class BaseModelLogger(BaseLogger):
 
     def firstlog(self, name=None, options=True):
         # todo: model should be saved while processing regardless transaction
-        self.object.name = name or u'SyncData'
+        self.object.name = name or 'SyncData'
         self.object.date_launch = timezone.now()
         self.object.save()
 
     def finallog(self, name=None, status=True):
-        self.object.name = name or u'SyncData'
+        self.object.name = name or 'SyncData'
         self.object.status = not bool(status)
         self.object.finished = True
         self.object.date_finish = timezone.now()
@@ -251,8 +251,8 @@ class BaseModelHandler(object):
         #   1 -> 1, {'z': 1, 'a': 'value'} -> 'a__value__z__1'
         if not isinstance(value, dict):
             return value
-        return u'__'.join([unicode(i) for i in reduce(tuple.__add__,
-                                                      sorted(value.items()))])
+        return '__'.join([str(i) for i in reduce(tuple.__add__,
+                                                 sorted(value.items()))])
 
     # prepare action: initial data processing
     # ---------------------------------------
@@ -274,7 +274,8 @@ class BaseModelHandler(object):
         # (1,{1:1},2,None,{2:2},0,False) -> [(1,2,0,False), ({1:1,},{2:2,},),]
         sc_di = [(None, i,) if isinstance(i, dict) else (i, None,)
                  for i in values]
-        sc_di = map(lambda x: filter(lambda y: y is not None, x), zip(*sc_di))
+        sc_di = list(map(lambda x: filter(lambda y: y is not None, x),
+                         zip(*sc_di)))
         if not sc_di:
             return {}
 
@@ -340,7 +341,7 @@ class BaseModelHandler(object):
         if field.remote_field and isinstance(field.remote_field,
                                              models.ManyToManyRel):
             values = reduce(list.__add__, [i['fields'][fname] for i in data
-                                           if i['fields'].has_key(fname)], [])
+                                           if fname in i['fields']], [])
             objs = values and self.get_related_values(field, values)
             if not objs:
                 return
@@ -353,7 +354,7 @@ class BaseModelHandler(object):
         elif field.remote_field and isinstance(field.remote_field,
                                                models.ManyToOneRel):
             values = [i['fields'][fname] for i in data
-                      if i['fields'].has_key(fname)]
+                      if fname in i['fields']]
             objs = values and self.get_related_values(field, values)
             if not objs:
                 return
@@ -420,7 +421,7 @@ class BaseModelHandler(object):
     def get_instance_from_data(self, item):
         # get model instance by pk or by narural keys from data
         filter = None
-        if item.has_key('pk'):
+        if 'pk' in item:
             filter = {self.meta.model._meta.pk.attname: item['pk'],}
         elif hasattr(self.meta, 'natural_keys'):
             filter = dict([(i, item['fields'][i],)
@@ -429,25 +430,28 @@ class BaseModelHandler(object):
         return (self.meta.model.objects.filter(**filter).first()
                 if filter else None)
 
-    def prepare_uncleaned_data(self, data, item):
+    def prepare_uncleaned_data(self, data, item, instance):
         # update uncleaned_data values:
         #   set FileFields values as SimpleUploadedFile instances instead paths
         #   return data and files
 
         meta = self.meta.model._meta
         fields = dict([(i.name, i,) for i in meta.fields + meta.many_to_many])
-        files = {}
+        files, dropped = {}, []
 
-        for k, v in data.items():
+        for k, v in list(data.items()):
             field = fields.get(k, None)
             if not field or not v:
                 continue
             elif isinstance(field, models.FileField):
-                files[k] = self.get_uploaded_file_from_path(v)
+                if self.require_to_update_file(k, v, instance):
+                    files[k] = self.get_uploaded_file_from_path(v)
+                else:
+                    data.pop(k)  # remove unchanged file values to speed up
 
         return data, files
 
-    def prepare_cleaned_data(self, form, item):
+    def prepare_cleaned_data(self, form, item, instance):
         # update cleaned_data values:
         #   set rfield scalar values for m2o and m2m fields instead instances
         #   set path values for FileFields instead File descriptors
@@ -474,17 +478,29 @@ class BaseModelHandler(object):
 
         return cdata
 
+    def require_to_update_file(self, name, value, instance):
+        # check if file value need to be validated and updated
+        force = self.options.get('main.force_file_update', False)
+        old_file = getattr(instance, name, None)
+        if not force and instance and old_file:
+            old_info = os.stat(old_file.path)
+            new_info = os.stat(value)
+            if (old_info.st_mtime >= new_info.st_mtime
+                    and old_info.st_size == new_info.st_size):
+                return False
+        return True
+
     def validate_item(self, item):
         # validate one element of data:
         #   get instance from uncleaned_data,
         #   validate instance by form and return cleaned_data or errors
-        data = copy.deepcopy(item['fields'])
-        data, files = self.prepare_uncleaned_data(data, item)
-
         instance, form = self.get_instance_from_data(item), None
+
+        data = copy.deepcopy(item['fields'])
+        data, files = self.prepare_uncleaned_data(data, item, instance)
         if instance or not self.update_objects_only:
             kwargs = {'item': item, 'data': data,
-                      'files': files, 'instance': instance,}
+                      'files': files, 'instance': copy.deepcopy(instance),}
             form = self.get_form_class(**kwargs)
             form = self.get_form_instance(form, **kwargs)
 
@@ -493,7 +509,7 @@ class BaseModelHandler(object):
                     ' but object does not exists.')
             elem = {'valid': False, 'errors': {'__all__': elem,},}
         elif form.is_valid():
-            data = dict(self.prepare_cleaned_data(form, item),
+            data = dict(self.prepare_cleaned_data(form, item, instance),
                         pk=form.instance.pk or item.get('pk', None))
             elem = {'valid': True, 'cleaned': data,
                     'changed': form.has_changed(),}
@@ -620,8 +636,8 @@ class BaseModelHandler(object):
     def action_generate(self, data):
         """
         Метод обработчик действия generate.
-        Данное действие отвечает за сохранение всех корретных данных,
-        полученных и проверенных на этопе валидации.
+        Данное действие отвечает за сохранение всех корректных данных,
+        полученных и проверенных на этапе валидации.
         Для получения объектов моделей используется встроенный десериализатор,
         используемый в команде loaddata (так как он умеет только создавать
         объекты, а не обновлять их, используется несколько более сложный
@@ -637,7 +653,7 @@ class BaseModelHandler(object):
 
         self.log("\ngenerate                 %s "
                  % str(len(serialized)).ljust(5))
-        for dobj, sobj in izip(deserialized, serialized):  # lazy
+        for dobj, sobj in zip(deserialized, serialized):  # lazy
             if not self.require_to_save_object(dobj, sobj):
                 sobj['source']['pk'] = dobj.object.pk
                 char = '-'
@@ -784,14 +800,14 @@ class BaseImporter(object):
         strict_mode = handler.strict_mode_synchronize
 
         hrel = [i.get('hash_related').items()
-                for i in collection if i.has_key('hash_related')]
+                for i in collection if 'hash_related' in i]
         hrel = dict(set(reduce(list.__add__, hrel, [])))
         if not hrel:
             return
 
         # get hashed index for required collections
         hashed = dict([(r, dict([(i['__hash__'], i,) for i in data[r]
-                                 if i.has_key('__hash__')]),)
+                                 if '__hash__' in i]),)
                        for r in hrel.values()])
 
         # get field objects for required collections
@@ -843,7 +859,7 @@ class BaseImporter(object):
             handler.post_run(data=data, files=files)
 
     def visualize_struct(self, loaders, handlers):
-        return (u'Importer "%s"\n- loaders:\n    %s\n- handlers:\n    %s'
+        return ('Importer "%s"\n- loaders:\n    %s\n- handlers:\n    %s'
                 % (self.__class__.__name__,
                    '\n    '.join(i.__class__.__name__ for i in loaders),
                    '\n    '.join('%s (%s)%s' %  (
@@ -869,16 +885,16 @@ class BaseImporter(object):
         hqueue = self.get_handlers_queue(**options)
         status = 0
 
-        self.log(u'%s\n%s S Y N C D A T A %s\n%s\n'
-                 u'\nStarting Importer "%s".'
-                 u'\n- message       %s'
-                 u'\n- datetime      %s'
-                 u'\n- class         %s'
-                 u'\n- datadir       %s'
-                 u'\n- options       %s'
-                 u'\n- struct\n  %s'
+        self.log('%s\n%s S Y N C D A T A %s\n%s\n'
+                 '\nStarting Importer "%s".'
+                 '\n- message       %s'
+                 '\n- datetime      %s'
+                 '\n- class         %s'
+                 '\n- datadir       %s'
+                 '\n- options       %s'
+                 '\n- struct\n  %s'
                  % ('-'*79, '-'*31, '-'*31, '-'*79,
-                    clsname, options.get('message', u'—'),
+                    clsname, options.get('message', '—'),
                     timezone.localtime(timezone.now()), self.__class__,
                     settings.DATA_DIR,
                     json.dumps(options, indent=2, ensure_ascii=False),

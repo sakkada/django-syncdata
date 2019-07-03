@@ -1,5 +1,8 @@
 syntax: glob
 *.swp
-*.pyc*
-*.pyo*
-*.orig*
+*.pyc
+*.pyo
+*.orig
+
+syntax: regexp
+^(?!syncdata)

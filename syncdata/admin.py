@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from django.contrib import admin
 from django import forms
 
@@ -9,9 +8,10 @@ class SyncDataLogEntryForm(forms.ModelForm):
     class Meta:
         fields = '__all__'
         widgets = {
-            'text': forms.Textarea(attrs={'style': 'font-family: monospace;'
-                                                   ' overflow-x: hidden;',
-                                          'rows': 35, 'cols': 81,}),
+            'text': forms.Textarea(attrs={
+                'style': 'font-family: monospace; overflow-x: hidden;',
+                'rows': 35, 'cols': 81,
+            }),
         }
 
 

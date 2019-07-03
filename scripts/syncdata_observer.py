@@ -11,9 +11,9 @@ from watchdog.events import PatternMatchingEventHandler
 
 SYNCDATA_IMPORTERS = {
     'xmlsource': {
-        'match': re.compile('^xmlsource\.\d+\.\d+.xml$'),
-        'params': (u'xmlsource.path="{path}" '
-                   u'main.generate=True main.download=True')
+        'match': re.compile(r'^xmlsource\.\d+\.\d+.xml$'),
+        'params': ('xmlsource.path="{path}" '
+                   'main.generate=True main.download=True')
     },
 }
 
@@ -24,7 +24,7 @@ def subprocess_syncdata_importer(managepy, srcfile):
     params = params.format(**srcfile.get_context()) if params else params
 
     p = subprocess.Popen(
-        ['python', managepy, 'syncdata',
+        [sys.executable, managepy, 'syncdata',
          '-i', srcfile.importer, '-p', params,])
 
     p.communicate()
@@ -39,8 +39,8 @@ def subprocess_syncdata_importer(managepy, srcfile):
 
 
 class SourceFileHandler(object):
-    regex = re.compile('^(?P<importer>[\w_-]+)\.(?P<datetime>\d{14}\.\d{1,8})'
-                       '(?P<extension>\.[\w_-]+)$')
+    regex = re.compile(r'^(?P<importer>[\w_-]+)\.(?P<datetime>\d{14}\.\d{1,8})'
+                       r'(?P<extension>\.[\w_-]+)$')
 
     def __init__(self, path):
         self.path = path
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     # get all zip files
     files = [SourceFileHandler(os.path.abspath(os.path.join(srcdir, i)))
-             for i in os.walk(srcdir).next()[2]]
+             for i in os.walk(srcdir).__next__()[2]]
     files = [i for i in files if i.is_valid()]
 
     observer = Observer()

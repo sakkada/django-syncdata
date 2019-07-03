@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from django import dispatch
 
 importer_pre_launch = dispatch.Signal(providing_args=['importer'])

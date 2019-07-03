@@ -1,4 +1,3 @@
-import os
 from django.conf import settings
 
 IMPORTERS = getattr(settings, 'SYNCDATA_IMPORTERS', {})

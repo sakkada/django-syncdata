@@ -9,8 +9,8 @@ django builtin command's generation method (with help of deserializer).
 
 # Requirements
 
-* Python (2.7, 3.3, 3.4, 3.5, 3.6)
-* Django (1.8, 1.9, 1.10, 1.11)
+* Python (3.5, 3.6, 3.7)
+* Django (2.0, 2.1, 2.2)
 
 # Installation
 
@@ -20,7 +20,7 @@ Install using `pip`:
 
 or
 
-    pip install -e hg+https://bitbucket.org/sakkada/django-syncdata/@django-1.11.x#egg=django-syncdata-dev
+    pip install -e hg+https://bitbucket.org/sakkada/django-syncdata/@django-2.0.x#egg=django-syncdata-dev
 
 Add `syncdata` to installed apps and `syncdata` options to `settings.py`:
 

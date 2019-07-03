@@ -4,14 +4,14 @@ from django.utils.translation import ugettext_lazy as _
 
 
 class BaseSyncDataLogEntry(models.Model):
-    name = models.CharField(_("name"), max_length=2000)
-    text = models.TextField(_("log entry text"), blank=True, default=u'')
+    name = models.CharField(_('name'), max_length=2000)
+    text = models.TextField(_('log entry text'), blank=True, default='')
 
-    status = models.BooleanField(_("status"), default=False)
-    finished = models.BooleanField(_("finished?"), default=False)
+    status = models.BooleanField(_('status'), default=False)
+    finished = models.BooleanField(_('finished?'), default=False)
 
-    date_launch = models.DateTimeField(_("launch time"), null=True, blank=True)
-    date_finish = models.DateTimeField(_("finish time"), null=True, blank=True)
+    date_launch = models.DateTimeField(_('launch time'), null=True, blank=True)
+    date_finish = models.DateTimeField(_('finish time'), null=True, blank=True)
 
     # stat info
     date_create = models.DateTimeField(editable=False, auto_now_add=True)
@@ -27,4 +27,4 @@ class BaseSyncDataLogEntry(models.Model):
         return self.name
 
     def log(self, value):
-        self.text = u'{}{}'.format(self.text, value)
+        self.text = '{}{}'.format(self.text, value)

@@ -1,4 +1,3 @@
-# -- coding: utf-8 --
 import sys
 import codecs
 import locale
@@ -44,7 +43,7 @@ class Command(BaseCommand):
         importers = options['importer'].split()
         statuses = {}
         params = options['params'] and params_parser(options['params'])
-        params.update(message=u'SyncData Importer run from shell (syncdata)')
+        params.update(message='SyncData Importer run from shell (syncdata)')
 
         for iname in importers:
             Importer = IMPORTERS.get(iname, None)
